@@ -74,7 +74,10 @@ func (c *Converter) processObject(pkg *packages.Package, object types.Object, qu
 	retType := c.returnType(pkg, object, typ, qual)
 	switch rt := retType.(type) {
 	case *Struct:
-		c.Packages[pkg.PkgPath].Structs[object.Name()] = rt
+		c.Packages[pkg.PkgPath].Structs[object.Name()] = &ObjectStruct{
+			Object: object,
+			Struct: rt,
+		}
 	}
 
 	return nil
@@ -95,22 +98,24 @@ func (c *Converter) internalReturnType(pkg *packages.Package, object types.Objec
 	case *types.Slice:
 	case *types.Struct:
 		ret := &Struct{
-			Type: typ,
+			Type:    typ,
+			Fields:  map[string]*types.Var{},
+			Methods: map[string]*types.Func{},
 		}
 		for i := 0; i < t.NumFields(); i++ {
 			f := t.Field(i)
 			if f.Embedded() {
 				continue
 			}
-			ret.Fields = append(ret.Fields, f)
+			ret.Fields[f.Name()] = f
 		}
 
 		for _, meth := range typeutil.IntuitiveMethodSet(t, nil) {
 			switch meth.Kind() {
 			case types.MethodVal:
-				ret.Methods = append(ret.Methods, meth.Obj().(*types.Func))
+				ret.Methods[meth.Obj().Name()] = meth.Obj().(*types.Func)
 			case types.MethodExpr:
-				ret.Methods = append(ret.Methods, meth.Obj().(*types.Func))
+				ret.Methods[meth.Obj().Name()] = meth.Obj().(*types.Func)
 			default:
 				panic(fmt.Sprintf("unsupported selector(%T)", meth))
 			}
