@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/RangelReale/gosrcconv/pkg/gen"
 	"github.com/RangelReale/gosrcconv/pkg/gosrcconv"
+	"go/ast"
 	"go/types"
 	"io"
 	"os"
@@ -34,7 +35,18 @@ func (w *PythonWriter) Output(out io.Writer) error {
 	var err error
 	w.gf.Line("# package: %s", w.pkg.Package.PkgPath)
 
+	for sn, st := range w.pkg.Consts {
+		w.gf.Line("# %s", w.converter.Loader.FileSet.Position(st.Object.Pos()))
+
+		err = w.writeConst(sn, st, qual)
+		if err != nil {
+			return err
+		}
+	}
+
 	for sn, st := range w.pkg.Structs {
+		w.gf.Line("# %s", w.converter.Loader.FileSet.Position(st.Object.Pos()))
+
 		err = w.writeStruct(sn, st, qual)
 		if err != nil {
 			return err
@@ -56,18 +68,24 @@ func (w *PythonWriter) OutputFile(filename string) error {
 	return f.Close()
 }
 
-func (w *PythonWriter) writeStruct(name string, ostruct *gosrcconv.ObjectStruct, qf types.Qualifier) error {
+func (w *PythonWriter) writeConst(name string, object *gosrcconv.ObjectConst, qf types.Qualifier) error {
+	w.gf.Append("%s", object.Object.Name())
+	w.gf.Append(" = %s", object.Const.Val.String())
+	w.gf.Append(w.returnLineComment(object.Object))
+	w.gf.NL()
+	return nil
+}
+
+func (w *PythonWriter) writeStruct(name string, object *gosrcconv.ObjectStruct, qf types.Qualifier) error {
 	fieldCount := 0
 
-	w.gf.Line("# %s", w.converter.Loader.FileSet.Position(ostruct.Object.Pos()))
-
-	w.gf.Line("class %s:", ostruct.Object.Name())
+	w.gf.Line("class %s:", object.Object.Name())
 	w.gf.I()
-	for _, field := range ostruct.Struct.Fields {
+	for _, field := range object.Struct.Fields {
 		w.gf.StartLine()
 		w.gf.Append("%s: ", w.pythonIdent(field.Name()))
 		w.gf.Append(w.returnType(field.Type(), qf))
-		//p.AppendLineComment(gf, f)
+		w.gf.Append(w.returnLineComment(field))
 		w.gf.NL()
 		fieldCount++
 	}
@@ -142,4 +160,25 @@ func (w *PythonWriter) pythonIdent(ident string) string {
 		return fmt.Sprintf("%s_", ident)
 	}
 	return ident
+}
+
+func (w *PythonWriter) returnLineComment(typeObj types.Object) string {
+	fast := w.converter.AstOf(typeObj)
+	if fast != nil {
+		switch xfast := fast.(type) {
+		case *ast.Field:
+			if xfast.Comment != nil && len(xfast.Comment.List) > 0 {
+				return fmt.Sprintf("  # %s", strings.TrimSpace(xfast.Comment.Text()))
+			}
+		case *ast.ValueSpec:
+			if xfast.Comment != nil && len(xfast.Comment.List) > 0 {
+				return fmt.Sprintf("  # %s", strings.TrimSpace(xfast.Comment.Text()))
+			}
+		case *ast.TypeSpec:
+			if xfast.Comment != nil && len(xfast.Comment.List) > 0 {
+				return fmt.Sprintf("  # %s", strings.TrimSpace(xfast.Comment.Text()))
+			}
+		}
+	}
+	return ""
 }

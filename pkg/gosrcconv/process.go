@@ -39,11 +39,18 @@ func (c *Converter) processObject(pkg *packages.Package, object types.Object, qu
 	var tname *types.TypeName
 	typ := object.Type()
 
+	var retType Type
+
 	switch tobj := object.(type) {
 	case *types.PkgName:
 	case *types.Const:
+		retType = &Const{
+			Type: typ,
+			Val: tobj.Val(),
+		}
 	case *types.TypeName:
 		tname = tobj
+		retType = c.returnType(pkg, object, typ, qual)
 	case *types.Var:
 	case *types.Func:
 	case *types.Label:
@@ -71,8 +78,12 @@ func (c *Converter) processObject(pkg *packages.Package, object types.Object, qu
 		}
 	}
 
-	retType := c.returnType(pkg, object, typ, qual)
 	switch rt := retType.(type) {
+	case *Const:
+		c.Packages[pkg.PkgPath].Consts[object.Name()] = &ObjectConst{
+			Object: object,
+			Const: rt,
+		}
 	case *Struct:
 		c.Packages[pkg.PkgPath].Structs[object.Name()] = &ObjectStruct{
 			Object: object,
@@ -134,4 +145,25 @@ func (c *Converter) internalReturnType(pkg *packages.Package, object types.Objec
 	}
 
 	return nil
+}
+
+type TypeCapability int
+
+const (
+	CapHasMethods TypeCapability = 1 << iota
+	CapIsNamed
+)
+
+func (c *Converter) typeCapability(t types.Type) TypeCapability {
+	var ret TypeCapability
+	if len(typeutil.IntuitiveMethodSet(t, nil)) > 0 {
+		ret |= CapHasMethods
+	}
+
+	switch t.(type) {
+	case *types.Named:
+		ret |= CapIsNamed
+	}
+
+	return ret
 }
