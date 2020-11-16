@@ -2,7 +2,7 @@ package gen
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"strings"
 )
 
@@ -46,9 +46,7 @@ func (g *GenFile) D() {
 	g.indent--
 }
 
-func (g *GenFile) WriteFile(filename string) {
-	err := ioutil.WriteFile(filename, []byte(g.pb.String()), 0644)
-	if err != nil {
-		panic(err)
-	}
+func (g *GenFile) Output(out io.Writer) error {
+	_, err := out.Write([]byte(g.pb.String()))
+	return err
 }

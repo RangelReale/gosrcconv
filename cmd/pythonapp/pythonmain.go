@@ -4,9 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"github.com/RangelReale/gosrcconv/pkg/gosrcconv"
-	"github.com/davecgh/go-spew/spew"
+	"github.com/RangelReale/gosrcconv/pkg/pythonsrc"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 func main() {
@@ -31,7 +32,11 @@ func main() {
 		panic(err)
 	}
 	for pn, pv := range c.Packages {
-		fmt.Println(pn)
-		spew.Dump(pv.Structs)
+		filename := filepath.Join(outputPath, fmt.Sprintf("%s.py", strings.Replace(pn, "/", ".", -1)))
+		writer := pythonsrc.NewPythonWriter(c, pv)
+		err = writer.OutputFile(filename)
+		if err != nil {
+			panic(err)
+		}
 	}
 }
